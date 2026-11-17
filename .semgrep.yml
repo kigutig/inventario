@@ -1,0 +1,28 @@
+# ==============================================================================
+# REGRAS DE SAST (STATIC APPLICATION SECURITY TESTING - SEMGREP / DEVSECOPS)
+# ==============================================================================
+rules:
+  - id: react-dangerouslysetinnerhtml
+    patterns:
+      - pattern: <$TAG ... dangerouslySetInnerHTML={{__html: $HTML}} ... />
+    message: "Uso potencial de 'dangerouslySetInnerHTML' que pode causar Cross-Site Scripting (XSS). Use sanitização ou React children."
+    severity: ERROR
+    languages: [typescript, javascript]
+
+  - id: hardcoded-secret-key-frontend
+    patterns:
+      - pattern-either:
+          - pattern: const $KEY = "sb_secret_..."
+          - pattern: let $KEY = "sb_secret_..."
+          - pattern: var $KEY = "sb_secret_..."
+    message: "A Secret Key do Supabase (Service Role) NÃO deve ser inserida diretamente no código fonte do frontend."
+    severity: ERROR
+    languages: [typescript, javascript]
+
+  - id: unvalidated-open-redirect
+    patterns:
+      - pattern: window.location.href = $URL
+      - pattern-not: window.location.href = window.location.href
+    message: "Possível redirecionamento aberto. Valide que a URL de destino é confiável antes de atribuir a window.location."
+    severity: WARNING
+    languages: [typescript, javascript]

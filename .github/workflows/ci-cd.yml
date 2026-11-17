@@ -1,0 +1,176 @@
+name: Pipeline DevSecOps & CI/CD - Inventário Industrial
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 1. SCAN DE SEGREDOS (DEVSECOPS: GITLEAKS)
+  # ============================================================================
+  secret-scan:
+    name: 🛡️ Detecção de Segredos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Executar Gitleaks Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+  # ============================================================================
+  # 2. ANÁLISE ESTÁTICA DE SEGURANÇA (DEVSECOPS: SAST COM SEMGREP)
+  # ============================================================================
+  sast-scan:
+    name: 🔍 SAST Code Analysis (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar e Executar Semgrep com Regras Personalizadas
+        run: |
+          python3 -m pip install semgrep
+          semgrep scan --config=.semgrep.yml --config=p/typescript --config=p/react --config=p/owasp-top-ten --error
+
+  # ============================================================================
+  # 3. ANÁLISE DE DEPENDÊNCIAS (DEVSECOPS: SCA COM NPM AUDIT)
+  # ============================================================================
+  sca-audit:
+    name: 📦 Auditoria de Dependências (SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Instalação Limpa de Dependências
+        run: npm ci
+
+      - name: Auditoria de Vulnerabilidades Conhecidas (SCA)
+        run: npm run security:audit
+
+  # ============================================================================
+  # 4. QUALIDADE DE CÓDIGO, TIPOS E TESTES AUTOMATIZADOS
+  # ============================================================================
+  lint-and-tests:
+    name: 🧪 Linter, Typecheck & Testes Unitários/Integração
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Verificação de Estilo e Sintaxe (Oxlint)
+        run: npm run lint
+
+      - name: Verificação de Tipos TypeScript (Strict Mode)
+        run: npm run typecheck
+
+      - name: Executar Testes Automatizados com Cobertura (Vitest + V8)
+        run: npm run test:coverage
+
+      - name: Upload de Relatório de Cobertura de Código
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: coverage/
+          retention-days: 14
+
+  # ============================================================================
+  # 5. BUILD DO CONTAINER E SCAN DE VULNERABILIDADES (TRIVY CONTAINER SCAN)
+  # ============================================================================
+  docker-security-scan:
+    name: 🐳 Docker Multi-Stage Build & Trivy Scan
+    needs: [secret-scan, sast-scan, sca-audit, lint-and-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build da Imagem Docker Endurecida (Hardened)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: inventario-industrial:ci-${{ github.sha }}
+          build-args: |
+            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL || 'https://pvnjafbkjfbcvwpixuen.supabase.co' }}
+            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_placeholder' }}
+
+      - name: Escaneamento de Vulnerabilidades no Container (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: inventario-industrial:ci-${{ github.sha }}
+          format: "table"
+          exit-code: "0" # Alerta informando achados; use '1' para barrar builds com HIGH/CRITICAL em produção
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+  # ============================================================================
+  # 6. ESTÁGIO DE DEPLOY EM PRODUÇÃO
+  # ============================================================================
+  deploy:
+    name: 🚀 Deploy Automatizado (Produção)
+    needs: [docker-security-scan]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Compilar Aplicação para Produção
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Empacotar Artefato de Produção
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: dist/
+          retention-days: 30
+
+      - name: Notificar Sucesso do Pipeline
+        run: |
+          echo "✅ Pipeline DevSecOps concluído com sucesso!"
+          echo "📦 Artefatos prontos e validados para publicação em produção."

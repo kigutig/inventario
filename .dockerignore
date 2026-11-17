@@ -1,0 +1,33 @@
+# Dependências e caches
+node_modules
+.npm
+dist
+coverage
+.cache
+
+# Versionamento e documentação interna
+.git
+.github
+.gitignore
+.vscode
+.idea
+
+# Segredos e variáveis de ambiente
+.env*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testes e relatórios
+test-results
+vitest.config.ts
+src/test
+
+# Arquivos temporários e backups
+*.tmp
+*.bak
+*.xlsx

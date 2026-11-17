@@ -1,0 +1,21 @@
+# ==============================================================================
+# CONFIGURAÇÃO DE SECRET SCANNING (GITLEAKS - DEVSECOPS)
+# ==============================================================================
+title = "Audit.Barcode Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Permitir arquivos de exemplo e documentação"
+files = [
+  '''^\.env\.example$''',
+  '''^README\.md$''',
+  '''^src/test/.*$''',
+]
+
+regexes = [
+  '''sua-anon-public-key-aqui''',
+  '''seu-projeto\.supabase\.co''',
+  '''00000000-0000-0000-0000-000000000000''',
+]
