@@ -39,7 +39,7 @@ import type { ItemInventariado, LogLeitura, ProdutoCadastro, ResumoSessao, Sessa
 import { getSupabase } from './lib/supabase';
 
 const InventoryMain: React.FC = () => {
-  const { user, demoUser, loading: authLoading } = useAuth();
+  const { user, demoUser, loading: authLoading, renewSession, signOut } = useAuth();
 
   // Estados principais
   const [activeTab, setActiveTab] = useState<'contagem' | 'produtos' | 'sessoes'>('contagem');
@@ -55,6 +55,31 @@ const InventoryMain: React.FC = () => {
   const [showProductModal, setShowProductModal] = useState<boolean>(false);
   const [showAuditLogs, setShowAuditLogs] = useState<boolean>(false);
   const [skuParaCadastrar, setSkuParaCadastrar] = useState<string | undefined>(undefined);
+  const [lastActivity, setLastActivity] = useState<number>(Date.now());
+
+  // Mitigação CWE-613: Monitoramento de inatividade e expiração temporal de sessão
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos sem leitura no leitor
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS) {
+        signOut();
+      }
+    }, 60000);
+
+    const recordUserActivity = () => {
+      setLastActivity(Date.now());
+      renewSession();
+    };
+
+    window.addEventListener('keydown', recordUserActivity);
+    window.addEventListener('click', recordUserActivity);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('keydown', recordUserActivity);
+      window.removeEventListener('click', recordUserActivity);
+    };
+  }, [lastActivity, renewSession, signOut]);
 
   // Sessão ativa
   const sessaoAtiva = useMemo(() => {
@@ -232,6 +257,7 @@ const InventoryMain: React.FC = () => {
   // --------------------------------------------------------------------------
   const handleScan = async (sku: string) => {
     if (!sessaoAtiva) throw new Error('Nenhuma sessão selecionada');
+    renewSession();
 
     const userId = user?.id || demoUser?.email;
     const resultado = await registrarLeitura(sessaoAtiva.id, sku, userId);

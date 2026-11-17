@@ -121,12 +121,25 @@ export async function importarPlanilhaProdutos(file: File): Promise<ResultadoImp
   });
 }
 
+/**
+ * Sanitiza valores contra CSV Formula Injection (CWE-1236).
+ * Previne execução de comandos/fórmulas no Excel caso o campo inicie com '=', '+', '-', '@', '\t' ou '\r'.
+ */
+export function sanitizeCsvFormula<T>(value: T): T {
+  if (typeof value === 'string') {
+    if (/^[=+\-@\t\r]/.test(value)) {
+      return `'${value}` as unknown as T;
+    }
+  }
+  return value;
+}
+
 export function exportarRelatorioInventario(
   sessao: SessaoInventario,
   itens: ItemInventariado[],
   formato: 'xlsx' | 'csv'
 ) {
-  // Preparar dados tabulares
+  // Preparar dados tabulares com sanitização contra CWE-1236 (Formula Injection)
   const dadosExportacao = itens.map((item) => {
     const divergencia = item.quantidade_contada - item.estoque_sistema_snapshot;
     const impacto = divergencia * item.custo_unitario_snapshot;
@@ -137,12 +150,12 @@ export function exportarRelatorioInventario(
     else if (divergencia < 0) situacao = 'FALTA (-)';
 
     return {
-      'Código SKU': item.codigo_sku,
-      'Descrição do Produto': item.descricao_snapshot,
+      'Código SKU': sanitizeCsvFormula(item.codigo_sku),
+      'Descrição do Produto': sanitizeCsvFormula(item.descricao_snapshot),
       'Estoque Teórico (Sistema)': item.estoque_sistema_snapshot,
       'Qtd. Contada (Físico)': item.quantidade_contada,
       'Divergência': divergencia,
-      'Situação': situacao,
+      'Situação': sanitizeCsvFormula(situacao),
       'Custo Unitário (R$)': item.custo_unitario_snapshot.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
       'Impacto Financeiro (R$)': impacto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
       'Cadastrado': item.cadastrado_no_sistema ? 'SIM' : 'NÃO',

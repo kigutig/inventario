@@ -64,7 +64,7 @@ jobs:
         run: npm ci
 
       - name: Auditoria de Vulnerabilidades Conhecidas (SCA)
-        run: npm run security:audit
+        run: npm audit --audit-level=high
 
   # ============================================================================
   # 4. QUALIDADE DE CÓDIGO, TIPOS E TESTES AUTOMATIZADOS

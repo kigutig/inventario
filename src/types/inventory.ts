@@ -45,6 +45,10 @@ export interface LogLeitura {
   codigo_sku: string;
   usuario_id?: string | null;
   usuario_email?: string | null;
+  tipo_evento?: 'BIPE' | 'AJUSTE_MANUAL_ADICAO' | 'AJUSTE_MANUAL_SUBTRACAO' | 'CADASTRO_RAPIDO' | string;
+  quantidade_anterior?: number;
+  quantidade_nova?: number;
+  ip_address?: string | null;
   created_at: string;
 }
 

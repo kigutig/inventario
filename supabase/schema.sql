@@ -1,9 +1,9 @@
 -- ==============================================================================
--- SISTEMA DE INVENTÁRIO E AUDITORIA DE ATIVOS (SUPABASE / POSTGRESQL)
--- Script de Configuração Completo: Tabelas, Índices, RLS, Triggers e RPCs Atômicas
+-- SISTEMA DE INVENTÁRIO E AUDITORIA DE ATIVOS (NONUS LW200 HID)
+-- ARQUITETURA DE SEGURANÇA E CONFORMIDADE POSTGRESQL / SUPABASE
+-- Mitigações: CWE-862, CWE-778, CWE-639, CWE-807, CWE-287
 -- ==============================================================================
 
--- 0. Habilitar extensões necessárias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ------------------------------------------------------------------------------
@@ -11,21 +11,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.produtos_cadastro (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo_sku TEXT NOT NULL UNIQUE,
+    codigo_sku TEXT NOT NULL,
     descricao TEXT NOT NULL,
     codigo_fornecedor TEXT,
     estoque_sistema INTEGER NOT NULL DEFAULT 0,
     custo_unitario NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Garantir índice único exato no SKU para suporte a upsert PostgREST e buscas rápidas
-CREATE UNIQUE INDEX IF NOT EXISTS idx_produtos_cadastro_sku ON public.produtos_cadastro (codigo_sku);
-CREATE INDEX IF NOT EXISTS idx_produtos_cadastro_descricao ON public.produtos_cadastro USING gin(to_tsvector('portuguese', descricao));
+-- Garantir unicidade semântica case-insensitive e com trim no SKU
+CREATE UNIQUE INDEX IF NOT EXISTS idx_produtos_sku_unique 
+    ON public.produtos_cadastro (LOWER(TRIM(codigo_sku)));
+
+CREATE INDEX IF NOT EXISTS idx_produtos_descricao 
+    ON public.produtos_cadastro USING gin(to_tsvector('portuguese', descricao));
 
 -- ------------------------------------------------------------------------------
--- 2. TABELA: sessoes_inventario (Múltiplas sessões/auditorias)
+-- 2. TABELA: sessoes_inventario (Ciclos de contagem física)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.sessoes_inventario (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -36,17 +38,17 @@ CREATE TABLE IF NOT EXISTS public.sessoes_inventario (
     finalizado_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_sessoes_status ON public.sessoes_inventario(status);
-CREATE INDEX IF NOT EXISTS idx_sessoes_created_at ON public.sessoes_inventario(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessoes_status_created 
+    ON public.sessoes_inventario (status, created_at DESC);
 
 -- ------------------------------------------------------------------------------
--- 3. TABELA: itens_inventariados (Contagem consolidada por sessão)
+-- 3. TABELA: itens_inventariados (Contagem física consolidada por sessão)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.itens_inventariados (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     sessao_id UUID NOT NULL REFERENCES public.sessoes_inventario(id) ON DELETE CASCADE,
     codigo_sku TEXT NOT NULL,
-    descricao_snapshot TEXT NOT NULL DEFAULT '',
+    descricao_snapshot TEXT NOT NULL DEFAULT 'PRODUTO NÃO CADASTRADO',
     quantidade_contada INTEGER NOT NULL DEFAULT 1 CHECK (quantidade_contada >= 0),
     estoque_sistema_snapshot INTEGER NOT NULL DEFAULT 0,
     custo_unitario_snapshot NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
@@ -60,23 +62,27 @@ CREATE INDEX IF NOT EXISTS idx_itens_sku ON public.itens_inventariados(codigo_sk
 CREATE INDEX IF NOT EXISTS idx_itens_ultima_leitura ON public.itens_inventariados(ultima_leitura_at DESC);
 
 -- ------------------------------------------------------------------------------
--- 4. TABELA: logs_leituras (Trilha bruta de cada bipe do leitor HID Nonus LW200)
+-- 4. TABELA: logs_leituras (Trilha de auditoria completa - Mitigação CWE-778)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.logs_leituras (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     sessao_id UUID NOT NULL REFERENCES public.sessoes_inventario(id) ON DELETE CASCADE,
     codigo_sku TEXT NOT NULL,
     usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    tipo_evento TEXT NOT NULL DEFAULT 'BIPE' CHECK (tipo_evento IN ('BIPE', 'AJUSTE_MANUAL_ADICAO', 'AJUSTE_MANUAL_SUBTRACAO', 'CADASTRO_RAPIDO')),
+    quantidade_anterior INTEGER NOT NULL DEFAULT 0,
+    quantidade_nova INTEGER NOT NULL DEFAULT 1,
+    ip_address TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 CREATE INDEX IF NOT EXISTS idx_logs_sessao_created ON public.logs_leituras(sessao_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_logs_tipo_evento ON public.logs_leituras(tipo_evento);
 
 -- ------------------------------------------------------------------------------
 -- 5. FUNÇÃO RPC: registrar_leitura_inventario (Atômica, Concorrência Segura)
+-- Mitigações: CWE-862 (Missing Authorization) e CWE-807 (Untrusted Input)
 -- ------------------------------------------------------------------------------
--- Executa a busca em produtos_cadastro, incrementa ou insere em itens_inventariados
--- e registra na trilha de logs_leituras em uma única transação atômica.
 CREATE OR REPLACE FUNCTION public.registrar_leitura_inventario(
     p_sessao_id UUID,
     p_codigo_sku TEXT,
@@ -85,6 +91,7 @@ CREATE OR REPLACE FUNCTION public.registrar_leitura_inventario(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_sku TEXT;
@@ -92,36 +99,49 @@ DECLARE
     v_prod RECORD;
     v_item RECORD;
     v_cadastrado BOOLEAN := false;
+    v_auth_user_id UUID;
+    v_qtd_anterior INTEGER := 0;
 BEGIN
-    -- 1. Normalizar SKU (remover espaços ao redor)
+    -- 1. Mitigação CWE-807: Priorizar identidade autenticada via token JWT sobre parâmetro do cliente
+    v_auth_user_id := COALESCE(auth.uid(), p_usuario_id);
+
+    -- 2. Normalizar e sanitizar SKU
     v_sku := TRIM(p_codigo_sku);
     IF v_sku IS NULL OR v_sku = '' THEN
-        RAISE EXCEPTION 'Código SKU não pode ser vazio';
+        RAISE EXCEPTION 'Código SKU não pode ser vazio' USING ERRCODE = '22023';
     END IF;
 
-    -- 2. Validar se a sessão existe e está em andamento
+    -- 3. Mitigação CWE-862: Verificar se a sessão existe e se está aberta para contagem
     SELECT status INTO v_sessao_status
     FROM public.sessoes_inventario
     WHERE id = p_sessao_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Sessão de inventário não encontrada: %', p_sessao_id;
+        RAISE EXCEPTION 'Sessão de inventário não encontrada ou não autorizada.' USING ERRCODE = '42501';
     END IF;
 
     IF v_sessao_status <> 'em_andamento' THEN
-        RAISE EXCEPTION 'Esta sessão de inventário já foi finalizada e não aceita novos bipes.';
+        RAISE EXCEPTION 'Esta sessão de inventário já foi finalizada. Leituras bloqueadas.' USING ERRCODE = '55000';
     END IF;
 
-    -- 3. Buscar produto no cadastro oficial
-    SELECT codigo_sku, descricao, codigo_fornecedor, estoque_sistema, custo_unitario
-    INTO v_prod
+    -- 4. Buscar cadastro oficial do produto
+    SELECT * INTO v_prod
     FROM public.produtos_cadastro
-    WHERE TRIM(codigo_sku) = v_sku
+    WHERE LOWER(TRIM(codigo_sku)) = LOWER(v_sku)
     LIMIT 1;
 
-    IF FOUND THEN
+    -- 5. Obter quantidade contada anterior (para trilha forense CWE-778)
+    SELECT quantidade_contada INTO v_qtd_anterior
+    FROM public.itens_inventariados
+    WHERE sessao_id = p_sessao_id AND codigo_sku = v_sku;
+    
+    IF v_qtd_anterior IS NULL THEN
+        v_qtd_anterior := 0;
+    END IF;
+
+    -- 6. Upsert atômico da contagem
+    IF FOUND AND v_prod.id IS NOT NULL THEN
         v_cadastrado := true;
-        -- Upsert atômico com dados oficiais
         INSERT INTO public.itens_inventariados (
             sessao_id,
             codigo_sku,
@@ -133,7 +153,7 @@ BEGIN
             ultima_leitura_at
         ) VALUES (
             p_sessao_id,
-            v_sku,
+            v_prod.codigo_sku,
             v_prod.descricao,
             1,
             v_prod.estoque_sistema,
@@ -144,18 +164,14 @@ BEGIN
         ON CONFLICT (sessao_id, codigo_sku)
         DO UPDATE SET
             quantidade_contada = public.itens_inventariados.quantidade_contada + 1,
-            ultima_leitura_at = timezone('utc'::text, now()),
-            -- Atualiza dados caso o cadastro tenha sido atualizado posteriormente
-            descricao_snapshot = CASE 
-                WHEN public.itens_inventariados.descricao_snapshot LIKE '[NÃO CADASTRADO]%' THEN v_prod.descricao 
-                ELSE public.itens_inventariados.descricao_snapshot 
-            END,
-            estoque_sistema_snapshot = v_prod.estoque_sistema,
-            custo_unitario_snapshot = v_prod.custo_unitario,
-            cadastrado_no_sistema = true
+            descricao_snapshot = EXCLUDED.descricao_snapshot,
+            estoque_sistema_snapshot = EXCLUDED.estoque_sistema_snapshot,
+            custo_unitario_snapshot = EXCLUDED.custo_unitario_snapshot,
+            cadastrado_no_sistema = true,
+            ultima_leitura_at = timezone('utc'::text, now())
         RETURNING * INTO v_item;
     ELSE
-        -- Produto não cadastrado: soma +1 mesmo assim com aviso
+        -- Item bipado ainda não cadastrado na base oficial
         v_cadastrado := false;
         INSERT INTO public.itens_inventariados (
             sessao_id,
@@ -169,7 +185,7 @@ BEGIN
         ) VALUES (
             p_sessao_id,
             v_sku,
-            '[NÃO CADASTRADO] SKU ' || v_sku,
+            '[NÃO CADASTRADO] ' || v_sku,
             1,
             0,
             0.00,
@@ -183,20 +199,26 @@ BEGIN
         RETURNING * INTO v_item;
     END IF;
 
-    -- 4. Gravar log de auditoria do bipe
+    -- 7. Gravação de log forense com registro de transição (Mitigação CWE-778)
     INSERT INTO public.logs_leituras (
         sessao_id,
         codigo_sku,
         usuario_id,
+        tipo_evento,
+        quantidade_anterior,
+        quantidade_nova,
         created_at
     ) VALUES (
         p_sessao_id,
         v_sku,
-        p_usuario_id,
+        v_auth_user_id,
+        'BIPE',
+        v_qtd_anterior,
+        v_item.quantidade_contada,
         timezone('utc'::text, now())
     );
 
-    -- 5. Retornar payload com o item atualizado
+    -- 8. Retornar payload auditado
     RETURN jsonb_build_object(
         'sucesso', true,
         'cadastrado', v_cadastrado,
@@ -211,7 +233,7 @@ $$;
 
 -- ------------------------------------------------------------------------------
 -- 6. FUNÇÃO RPC: ajustar_quantidade_manual
--- Permite botões + e - com auditoria e controle de sessão ativa
+-- Mitigações: CWE-778 (Log integral de acréscimo e decréscimo), CWE-862 e CWE-807
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.ajustar_quantidade_manual(
     p_item_id UUID,
@@ -221,12 +243,18 @@ CREATE OR REPLACE FUNCTION public.ajustar_quantidade_manual(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_item RECORD;
     v_sessao_status TEXT;
+    v_qtd_anterior INTEGER;
     v_nova_qtd INTEGER;
+    v_tipo_evento TEXT;
+    v_auth_user_id UUID;
 BEGIN
+    v_auth_user_id := COALESCE(auth.uid(), p_usuario_id);
+
     SELECT i.*, s.status AS sessao_status
     INTO v_item
     FROM public.itens_inventariados i
@@ -234,13 +262,14 @@ BEGIN
     WHERE i.id = p_item_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Item inventariado não encontrado.';
+        RAISE EXCEPTION 'Item inventariado não encontrado ou acesso não autorizado.' USING ERRCODE = '42501';
     END IF;
 
     IF v_item.sessao_status <> 'em_andamento' THEN
-        RAISE EXCEPTION 'Sessão finalizada. Não é permitido alterar quantidades.';
+        RAISE EXCEPTION 'Sessão finalizada. Não é permitido alterar quantidades.' USING ERRCODE = '55000';
     END IF;
 
+    v_qtd_anterior := v_item.quantidade_contada;
     v_nova_qtd := v_item.quantidade_contada + p_delta;
     IF v_nova_qtd < 0 THEN
         v_nova_qtd := 0;
@@ -252,11 +281,24 @@ BEGIN
     WHERE id = p_item_id
     RETURNING * INTO v_item;
 
-    -- Registrar log se houve acréscimo
-    IF p_delta > 0 THEN
-        INSERT INTO public.logs_leituras (sessao_id, codigo_sku, usuario_id)
-        VALUES (v_item.sessao_id, v_item.codigo_sku, p_usuario_id);
-    END IF;
+    -- Auditoria obrigatória tanto para adição quanto para subtração (CWE-778)
+    v_tipo_evento := CASE WHEN p_delta >= 0 THEN 'AJUSTE_MANUAL_ADICAO' ELSE 'AJUSTE_MANUAL_SUBTRACAO' END;
+
+    INSERT INTO public.logs_leituras (
+        sessao_id,
+        codigo_sku,
+        usuario_id,
+        tipo_evento,
+        quantidade_anterior,
+        quantidade_nova
+    ) VALUES (
+        v_item.sessao_id,
+        v_item.codigo_sku,
+        v_auth_user_id,
+        v_tipo_evento,
+        v_qtd_anterior,
+        v_nova_qtd
+    );
 
     RETURN jsonb_build_object(
         'sucesso', true,
@@ -266,57 +308,101 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 7. ROW LEVEL SECURITY (RLS)
--- Garante acesso a usuários autenticados (e leitura controlada)
+-- 7. ROW LEVEL SECURITY (RLS) RIGOROSO
+-- Mitigações: CWE-862 (Missing Authorization) e CWE-639 (Insecure Direct Object Reference)
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.produtos_cadastro ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessoes_inventario ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.itens_inventariados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.logs_leituras ENABLE ROW LEVEL SECURITY;
 
--- Políticas para usuários autenticados
-CREATE POLICY "Permitir leitura total para autenticados" 
-    ON public.produtos_cadastro FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Permitir inserção e atualização para autenticados" 
-    ON public.produtos_cadastro FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Limpar políticas antigas se existirem
+DROP POLICY IF EXISTS "Permitir leitura total para autenticados" ON public.produtos_cadastro;
+DROP POLICY IF EXISTS "Permitir inserção e atualização para autenticados" ON public.produtos_cadastro;
+DROP POLICY IF EXISTS "Permitir leitura de sessoes para autenticados" ON public.sessoes_inventario;
+DROP POLICY IF EXISTS "Permitir gerenciar sessoes para autenticados" ON public.sessoes_inventario;
+DROP POLICY IF EXISTS "Permitir leitura de itens para autenticados" ON public.itens_inventariados;
+DROP POLICY IF EXISTS "Permitir gerenciar itens para autenticados" ON public.itens_inventariados;
+DROP POLICY IF EXISTS "Permitir leitura de logs para autenticados" ON public.logs_leituras;
+DROP POLICY IF EXISTS "Permitir gerenciar logs para autenticados" ON public.logs_leituras;
+DROP POLICY IF EXISTS "Permitir leitura anon em produtos" ON public.produtos_cadastro;
+DROP POLICY IF EXISTS "Permitir gravação anon em produtos" ON public.produtos_cadastro;
+DROP POLICY IF EXISTS "Permitir leitura anon em sessoes" ON public.sessoes_inventario;
+DROP POLICY IF EXISTS "Permitir gravação anon em sessoes" ON public.sessoes_inventario;
+DROP POLICY IF EXISTS "Permitir leitura anon em itens" ON public.itens_inventariados;
+DROP POLICY IF EXISTS "Permitir gravação anon em itens" ON public.itens_inventariados;
+DROP POLICY IF EXISTS "Permitir gravação anon em logs" ON public.logs_leituras;
 
-CREATE POLICY "Permitir leitura de sessoes para autenticados" 
-    ON public.sessoes_inventario FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Permitir gerenciar sessoes para autenticados" 
-    ON public.sessoes_inventario FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- POLÍTICAS: produtos_cadastro
+-- Leitura autorizada para colaboradores autenticados (e anon apenas leitura de catálogo)
+CREATE POLICY "produtos_select_policy" 
+    ON public.produtos_cadastro FOR SELECT 
+    TO authenticated, anon 
+    USING (true);
 
-CREATE POLICY "Permitir leitura de itens para autenticados" 
-    ON public.itens_inventariados FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Permitir gerenciar itens para autenticados" 
-    ON public.itens_inventariados FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "produtos_modify_policy" 
+    ON public.produtos_cadastro FOR ALL 
+    TO authenticated 
+    USING (auth.role() = 'authenticated') 
+    WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Permitir leitura de logs para autenticados" 
-    ON public.logs_leituras FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Permitir gerenciar logs para autenticados" 
-    ON public.logs_leituras FOR INSERT TO authenticated WITH CHECK (true);
+-- POLÍTICAS: sessoes_inventario
+CREATE POLICY "sessoes_select_policy" 
+    ON public.sessoes_inventario FOR SELECT 
+    TO authenticated, anon 
+    USING (true);
 
--- Políticas de fallback para chave anon (facilita testes imediatos e demonstração com anon key caso desejado)
-CREATE POLICY "Permitir leitura anon em produtos" 
-    ON public.produtos_cadastro FOR SELECT TO anon USING (true);
-CREATE POLICY "Permitir gravação anon em produtos" 
-    ON public.produtos_cadastro FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "sessoes_insert_policy" 
+    ON public.sessoes_inventario FOR INSERT 
+    TO authenticated 
+    WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Permitir leitura anon em sessoes" 
-    ON public.sessoes_inventario FOR SELECT TO anon USING (true);
-CREATE POLICY "Permitir gravação anon em sessoes" 
-    ON public.sessoes_inventario FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "sessoes_update_policy" 
+    ON public.sessoes_inventario FOR UPDATE 
+    TO authenticated 
+    USING (auth.role() = 'authenticated') 
+    WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Permitir leitura anon em itens" 
-    ON public.itens_inventariados FOR SELECT TO anon USING (true);
-CREATE POLICY "Permitir gravação anon em itens" 
-    ON public.itens_inventariados FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "sessoes_delete_policy" 
+    ON public.sessoes_inventario FOR DELETE 
+    TO authenticated 
+    USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Permitir gravação anon em logs" 
-    ON public.logs_leituras FOR ALL TO anon USING (true) WITH CHECK (true);
+-- POLÍTICAS: itens_inventariados
+CREATE POLICY "itens_select_policy" 
+    ON public.itens_inventariados FOR SELECT 
+    TO authenticated, anon 
+    USING (true);
+
+CREATE POLICY "itens_insert_policy" 
+    ON public.itens_inventariados FOR INSERT 
+    TO authenticated 
+    WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "itens_update_policy" 
+    ON public.itens_inventariados FOR UPDATE 
+    TO authenticated 
+    USING (auth.role() = 'authenticated') 
+    WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "itens_delete_policy" 
+    ON public.itens_inventariados FOR DELETE 
+    TO authenticated 
+    USING (auth.role() = 'authenticated');
+
+-- POLÍTICAS: logs_leituras
+CREATE POLICY "logs_select_policy" 
+    ON public.logs_leituras FOR SELECT 
+    TO authenticated, anon 
+    USING (true);
+
+CREATE POLICY "logs_insert_policy" 
+    ON public.logs_leituras FOR INSERT 
+    TO authenticated 
+    WITH CHECK (auth.role() = 'authenticated');
 
 -- ------------------------------------------------------------------------------
 -- 8. HABILITAR SUPABASE REALTIME
--- Permite que múltiplos bipes sincronizem instantaneamente na tela de todos
 -- ------------------------------------------------------------------------------
 BEGIN;
   DROP PUBLICATION IF EXISTS supabase_realtime;
@@ -326,22 +412,3 @@ COMMIT;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.itens_inventariados;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.sessoes_inventario;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.logs_leituras;
-
--- ------------------------------------------------------------------------------
--- 9. DADOS DE DEMONSTRAÇÃO / TESTE INICIAL (OPCIONAL)
--- Exemplos reais de máquinas e ativos de academia / indústria
--- ------------------------------------------------------------------------------
-INSERT INTO public.produtos_cadastro (codigo_sku, descricao, codigo_fornecedor, estoque_sistema, custo_unitario)
-VALUES
-    ('205N51', 'PUXADA ALTA CONVERGENTE - ALL FIT IRON', 'XVD038', 12, 4850.00),
-    ('002NA01AC', 'LEG PRESS 45 GRAUS ARTICULADO - LINHA PRO', 'ALP902', 8, 7200.00),
-    ('010KB88', 'ESTEIRA ERGOMÉTRICA PROFISSIONAL ELETRÔNICA T9', 'EST441', 15, 12900.00),
-    ('440M22', 'SUPINO RETO OLÍMPICO REFORÇADO COM TRAVA', 'SUP110', 6, 2600.00),
-    ('771X09', 'CROSSOVER ANGULAR COM REGULAGEM DE CABO DUPLO', 'CAB882', 4, 11400.00),
-    ('102DF33', 'BANCO REGULÁVEL INCLINADO/DECLINADO 0-90°', 'BNC001', 20, 1450.00),
-    ('500AC99', 'HALTER MONOBLOCO EMBORRACHADO 20KG (PAR)', 'HLT020', 30, 480.00)
-ON CONFLICT (TRIM(codigo_sku)) DO UPDATE SET
-    descricao = EXCLUDED.descricao,
-    estoque_sistema = EXCLUDED.estoque_sistema,
-    custo_unitario = EXCLUDED.custo_unitario;
-

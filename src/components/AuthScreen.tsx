@@ -58,7 +58,10 @@ export const AuthScreen: React.FC = () => {
 
   const handleEntrarComoOperador = () => {
     const ident = email.trim() || 'operador.galpao@empresa.com.br';
-    loginAsOperator(ident);
+    const res = loginAsOperator(ident);
+    if (res?.error) {
+      setErrorMessage(res.error);
+    }
   };
 
   return (

@@ -561,8 +561,16 @@ export async function registrarLeitura(
 
   localStorage.setItem(`${LS_ITENS}_${sessaoId}`, JSON.stringify(itens));
 
-  // Registrar Log Local
-  await registrarLogLocal(sessaoId, sku, usuarioId);
+  // Registrar Log Local Forense (CWE-778)
+  const qtdAnterior = idx >= 0 ? itemAtualizado.quantidade_contada - 1 : 0;
+  await registrarLogLocal(
+    sessaoId,
+    sku,
+    usuarioId,
+    'BIPE',
+    qtdAnterior,
+    itemAtualizado.quantidade_contada
+  );
 
   return {
     sucesso: true,
@@ -596,13 +604,21 @@ export async function ajustarQuantidade(
   const idx = itens.findIndex((i) => i.id === itemId);
   if (idx < 0) throw new Error('Item não encontrado');
 
-  itens[idx].quantidade_contada = Math.max(0, itens[idx].quantidade_contada + delta);
+  const qtdAnterior = itens[idx].quantidade_contada;
+  const novaQtd = Math.max(0, itens[idx].quantidade_contada + delta);
+  itens[idx].quantidade_contada = novaQtd;
   itens[idx].ultima_leitura_at = new Date().toISOString();
   localStorage.setItem(`${LS_ITENS}_${sessaoId}`, JSON.stringify(itens));
 
-  if (delta > 0) {
-    await registrarLogLocal(sessaoId, itens[idx].codigo_sku, usuarioId);
-  }
+  // Auditoria forense completa para incremento e decremento (CWE-778)
+  await registrarLogLocal(
+    sessaoId,
+    itens[idx].codigo_sku,
+    usuarioId,
+    delta >= 0 ? 'AJUSTE_MANUAL_ADICAO' : 'AJUSTE_MANUAL_SUBTRACAO',
+    qtdAnterior,
+    novaQtd
+  );
 
   return itens[idx];
 }
@@ -640,7 +656,14 @@ export async function listarLogs(sessaoId: string): Promise<LogLeitura[]> {
   return json ? JSON.parse(json) : [];
 }
 
-async function registrarLogLocal(sessaoId: string, sku: string, usuarioId?: string) {
+async function registrarLogLocal(
+  sessaoId: string,
+  sku: string,
+  usuarioId?: string,
+  tipoEvento: 'BIPE' | 'AJUSTE_MANUAL_ADICAO' | 'AJUSTE_MANUAL_SUBTRACAO' | 'CADASTRO_RAPIDO' = 'BIPE',
+  quantidadeAnterior: number = 0,
+  quantidadeNova: number = 1
+) {
   const json = localStorage.getItem(`${LS_LOGS}_${sessaoId}`);
   const logs: LogLeitura[] = json ? JSON.parse(json) : [];
   logs.unshift({
@@ -648,6 +671,9 @@ async function registrarLogLocal(sessaoId: string, sku: string, usuarioId?: stri
     sessao_id: sessaoId,
     codigo_sku: sku,
     usuario_id: usuarioId || null,
+    tipo_evento: tipoEvento,
+    quantidade_anterior: quantidadeAnterior,
+    quantidade_nova: quantidadeNova,
     created_at: new Date().toISOString(),
   });
   if (logs.length > 100) logs.length = 100;
