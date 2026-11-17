@@ -35,14 +35,14 @@ jobs:
   sast-scan:
     name: 🔍 SAST Code Analysis (Semgrep)
     runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: Instalar e Executar Semgrep com Regras Personalizadas
-        run: |
-          python3 -m pip install semgrep
-          semgrep scan --config=.semgrep.yml --config=p/typescript --config=p/react --config=p/owasp-top-ten --error
+      - name: Executar Semgrep com Regras Customizadas e OWASP Top 10
+        run: semgrep scan --config=.semgrep.yml --config=p/typescript --config=p/react --config=p/owasp-top-ten --error
 
   # ============================================================================
   # 3. ANÁLISE DE DEPENDÊNCIAS (DEVSECOPS: SCA COM NPM AUDIT)
