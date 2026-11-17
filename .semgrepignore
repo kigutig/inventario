@@ -1,0 +1,9 @@
+# Dependências e caches
+node_modules/
+dist/
+coverage/
+.git/
+
+# Arquivos de dados binários
+*.xlsx
+package-lock.json
