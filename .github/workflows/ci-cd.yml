@@ -68,8 +68,8 @@ jobs:
       - name: Instalação Limpa de Dependências
         run: npm ci
 
-      - name: Auditoria de Vulnerabilidades Conhecidas (SCA)
-        run: npm audit --audit-level=high
+      - name: Auditoria de Vulnerabilidades em Dependências de Produção (SCA)
+        run: npm run security:audit
 
   # ============================================================================
   # 4. QUALIDADE DE CÓDIGO, TIPOS E TESTES AUTOMATIZADOS
