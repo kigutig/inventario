@@ -130,15 +130,15 @@ jobs:
             VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL || 'https://pvnjafbkjfbcvwpixuen.supabase.co' }}
             VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_placeholder' }}
 
-      - name: Escaneamento de Vulnerabilidades no Container (Trivy)
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
-        with:
-          image-ref: inventario-industrial:ci-${{ github.sha }}
-          format: "table"
-          exit-code: "0" # Alerta informando achados; use '1' para barrar builds com HIGH/CRITICAL em produção
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+      - name: Escaneamento de Vulnerabilidades no Container (Aqua Trivy)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
+            --format table \
+            --exit-code 0 \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            --severity CRITICAL,HIGH \
+            inventario-industrial:ci-${{ github.sha }}
 
   # ============================================================================
   # 6. ESTÁGIO DE DEPLOY EM PRODUÇÃO
