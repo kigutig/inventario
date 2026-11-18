@@ -109,6 +109,11 @@ const PRODUTOS_DEMO: ProdutoCadastro[] = [
 ];
 
 function initLocalDemo() {
+  // Se o Supabase estiver conectado, NÃO injeta dados demo locais
+  if (getSupabase()) {
+    return;
+  }
+
   if (!getSecureStorage(LS_PRODUTOS)) {
     setSecureStorage(LS_PRODUTOS, PRODUTOS_DEMO);
   }

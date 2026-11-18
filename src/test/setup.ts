@@ -37,6 +37,17 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 
 // ---------------------------------------------------------------------------
+// ISOLAMENTO DE TESTES: MOCK DO SUPABASE
+// Garante que a execução de testes automatizados NUNCA altere ou limpe o banco real
+// ---------------------------------------------------------------------------
+vi.mock('../lib/supabase', () => ({
+  getSupabase: vi.fn(() => null),
+  isSupabaseConfigured: vi.fn(() => false),
+  getSupabaseCredentials: vi.fn(() => ({ url: '', anonKey: '' })),
+  saveSupabaseCredentials: vi.fn(),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock do Web Audio API (Para testes de áudio com leitor Nonus LW200)
 // ---------------------------------------------------------------------------
 class MockGainNode {
