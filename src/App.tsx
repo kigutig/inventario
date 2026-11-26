@@ -487,22 +487,21 @@ const InventoryMain: React.FC = () => {
 
   if (loadingDados) {
     return (
-      <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center p-4 text-emerald-400">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin" />
-          <p className="text-xs font-mono tracking-widest text-slate-300">CARREGANDO SISTEMA DE INVENTÁRIO...</p>
+          <div className="w-8 h-8 border-3 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-xs text-gray-400">Carregando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col font-sans">
       {/* Topo / Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenSqlModal={() => setShowSqlModal(true)}
         onOpenReportModal={() => setShowReportModal(true)}
         onOpenLabelsModal={() => setShowLabelsModal(true)}
         onOpenUnscannedModal={() => setShowUnscannedModal(true)}
@@ -510,62 +509,62 @@ const InventoryMain: React.FC = () => {
       />
 
       {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-5">
         {/* TAB 1: CONTAGEM E BIPE */}
         {activeTab === 'contagem' && sessaoAtiva && (
           <div className="space-y-6">
             {/* Seletor Rápido de Sessão e Status */}
-            <div className="enterprise-card px-5 py-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="p-2.5 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 shadow-inner">
-                  <Layers className="w-5 h-5" />
+            <div className="bg-gray-800/40 border border-gray-700/50 px-4 py-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gray-900 text-blue-400">
+                  <Layers className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Sessão Ativa:</span>
-                    <strong className="text-base font-extrabold text-white tracking-wide">{sessaoAtiva.nome}</strong>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Sessão:</span>
+                    <strong className="text-sm font-bold text-white">{sessaoAtiva.nome}</strong>
                     <span
-                      className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                      className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
                         sessaoAtiva.status === 'finalizado'
-                          ? 'bg-slate-900 text-slate-400 border-slate-700'
-                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          ? 'bg-gray-700 text-gray-400'
+                          : 'bg-green-500/10 text-green-400'
                       }`}
                     >
                       {sessaoAtiva.status === 'finalizado' ? 'Finalizada' : 'Em Andamento'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                    Iniciada em {new Date(sessaoAtiva.created_at).toLocaleString('pt-BR')} // ID: {sessaoAtiva.id.slice(0, 8)}...
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {new Date(sessaoAtiva.created_at).toLocaleString('pt-BR')} · {sessaoAtiva.id.slice(0, 8)}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => setActiveTab('sessoes')}
-                  className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shadow-sm"
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700/50 text-gray-300 hover:text-white transition"
                 >
                   Trocar Sessão
                 </button>
 
                 <button
                   onClick={() => setShowProductModal(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shadow-sm"
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700/50 text-gray-300 hover:text-white transition"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  Base de Produtos ({produtos.length})
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Produtos ({produtos.length})
                 </button>
               </div>
             </div>
 
             {/* Aviso se a sessão estiver finalizada */}
             {sessaoAtiva.status === 'finalizado' && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center gap-3 text-amber-300 text-xs">
-                <Lock className="w-5 h-5 shrink-0 text-amber-400" />
+              <div className="bg-yellow-900/15 border border-yellow-700/30 rounded-lg p-3 flex items-center gap-3 text-yellow-300 text-xs">
+                <Lock className="w-4 h-4 shrink-0 text-yellow-400" />
                 <div>
-                  <p className="font-bold text-sm text-white">Esta sessão de inventário está finalizada.</p>
-                  <p className="text-slate-300 mt-0.5">
-                    Os bipes e alterações manuais estão bloqueados para auditoria final. Você ainda pode exportar os relatórios em Excel/CSV.
+                  <p className="font-semibold text-sm text-white">Sessão finalizada.</p>
+                  <p className="text-gray-400 mt-0.5">
+                    Bipes bloqueados. Você ainda pode exportar relatórios.
                   </p>
                 </div>
               </div>
@@ -600,9 +599,9 @@ const InventoryMain: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white">Cadastro Oficial de Produtos & Ativos</h2>
-                <p className="text-xs text-slate-400">
-                  Gerencie a base teórica de estoque e custos importada do ERP
+                <h2 className="text-lg font-bold text-white">Cadastro de Produtos & Ativos</h2>
+                <p className="text-xs text-gray-500">
+                  Base teórica de estoque e custos
                 </p>
               </div>
               <button
@@ -610,7 +609,7 @@ const InventoryMain: React.FC = () => {
                   setSkuParaCadastrar(undefined);
                   setShowProductModal(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition"
               >
                 <Plus className="w-4 h-4" />
                 Abrir Painel de Gestão & Importação
@@ -618,9 +617,9 @@ const InventoryMain: React.FC = () => {
             </div>
 
             {/* Tabela rápida de consulta */}
-            <div className="enterprise-card rounded-2xl overflow-hidden shadow-xl p-4">
+            <div className="bg-gray-800/40 border border-gray-700/50 rounded-xl overflow-hidden p-4">
               <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase font-mono border-b border-slate-800">
+                <thead className="bg-gray-900 text-gray-500 text-[11px] uppercase border-b border-gray-700/50">
                   <tr>
                     <th className="py-3 px-4">Código SKU</th>
                     <th className="py-3 px-4">Descrição Oficial</th>
@@ -630,28 +629,28 @@ const InventoryMain: React.FC = () => {
                     <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
+                <tbody className="divide-y divide-gray-700/30">
                   {produtos.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        Nenhum produto cadastrado no banco. Abra o painel acima para cadastrar ou importar sua planilha!
+                      <td colSpan={6} className="py-8 text-center text-gray-500">
+                        Nenhum produto cadastrado. Abra o painel acima para importar.
                       </td>
                     </tr>
                   ) : (
                     produtos.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-800/40">
-                        <td className="py-2.5 px-4 font-mono font-bold text-emerald-400">{p.codigo_sku}</td>
-                        <td className="py-2.5 px-4 text-slate-200">{p.descricao}</td>
-                        <td className="py-2.5 px-4 font-mono text-slate-400 text-xs">{p.codigo_fornecedor || '-'}</td>
-                        <td className="py-2.5 px-4 text-center font-mono text-slate-300">{p.estoque_sistema} un</td>
-                        <td className="py-2.5 px-4 text-right font-mono text-slate-300">
+                      <tr key={p.id} className="hover:bg-gray-800/40">
+                        <td className="py-2.5 px-4 font-mono font-semibold text-blue-400">{p.codigo_sku}</td>
+                        <td className="py-2.5 px-4 text-gray-200">{p.descricao}</td>
+                        <td className="py-2.5 px-4 text-gray-500 text-xs">{p.codigo_fornecedor || '-'}</td>
+                        <td className="py-2.5 px-4 text-center font-mono text-gray-400">{p.estoque_sistema} un</td>
+                        <td className="py-2.5 px-4 text-right font-mono text-gray-400">
                           {p.custo_unitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           <button
                             onClick={() => handleDeleteProduto(p.id)}
-                            title="Excluir Produto"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title="Excluir"
+                            className="p-1 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

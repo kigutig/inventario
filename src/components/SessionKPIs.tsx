@@ -19,94 +19,87 @@ export const SessionKPIs: React.FC<SessionKPIsProps> = ({ resumo }) => {
   const isFinanceiroPositivo = resumo.impactoFinanceiroTotal >= 0;
   const acuraciaClamped = Math.min(100, Math.max(0, resumo.acuraciaPercentual));
 
-  const acuraciaCor =
+  const acuraciaBarCor =
     acuraciaClamped >= 95
-      ? 'from-emerald-500 to-teal-400'
+      ? 'bg-green-500'
       : acuraciaClamped >= 85
-      ? 'from-amber-500 to-yellow-400'
-      : 'from-rose-500 to-red-400';
+      ? 'bg-yellow-500'
+      : 'bg-red-500';
 
   const acuraciaTextoCor =
     acuraciaClamped >= 95
-      ? 'text-emerald-400'
+      ? 'text-green-400'
       : acuraciaClamped >= 85
-      ? 'text-amber-400'
-      : 'text-rose-400';
+      ? 'text-yellow-400'
+      : 'text-red-400';
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {/* 1. Total Peças Bipadas */}
-      <div className="enterprise-card rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
+      <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Total Bipado
           </span>
-          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-105 transition-transform">
+          <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
             <PackageCheck className="w-4 h-4" />
           </div>
         </div>
 
         <div className="mt-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+            <span className="text-2xl font-bold text-white tabular-nums">
               {resumo.totalPecasBipadas.toLocaleString('pt-BR')}
             </span>
-            <span className="text-xs text-slate-400 font-medium">unidades</span>
+            <span className="text-xs text-gray-500">unidades</span>
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-700/50">
             <span>Soma física real</span>
-            <span className="text-emerald-400 font-mono font-medium">100% auditado</span>
+            <span className="text-blue-400 font-medium">100% auditado</span>
           </div>
         </div>
       </div>
 
       {/* 2. SKUs Únicos */}
-      <div className="enterprise-card rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
+      <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             SKUs Únicos
           </span>
-          <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-105 transition-transform">
+          <div className="p-1.5 rounded-lg bg-gray-600/20 text-gray-400">
             <Layers className="w-4 h-4" />
           </div>
         </div>
 
         <div className="mt-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+            <span className="text-2xl font-bold text-white tabular-nums">
               {resumo.totalSkusContados.toLocaleString('pt-BR')}
             </span>
-            <span className="text-xs text-slate-400 font-medium">itens</span>
+            <span className="text-xs text-gray-500">itens</span>
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-slate-800/80">
-            <span className="text-emerald-400 font-mono">{resumo.totalItensCorretos} s/ erro</span>
+          <div className="mt-2 flex items-center justify-between text-[11px] pt-2 border-t border-gray-700/50">
+            <span className="text-green-400">{resumo.totalItensCorretos} s/ erro</span>
             {resumo.totalNaoCadastrados > 0 ? (
-              <span className="text-amber-400 font-bold font-mono">+{resumo.totalNaoCadastrados} novos</span>
+              <span className="text-yellow-400 font-medium">+{resumo.totalNaoCadastrados} novos</span>
             ) : (
-              <span className="text-slate-400 font-mono">0 novos</span>
+              <span className="text-gray-500">0 novos</span>
             )}
           </div>
         </div>
       </div>
 
-      {/* 3. Divergências (Falta vs Sobra) */}
-      <div className="enterprise-card rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
+      {/* 3. Divergências */}
+      <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                resumo.totalItensDivergentes === 0 ? 'bg-emerald-400' : 'bg-rose-400'
-              }`}
-            />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Divergências
           </span>
           <div
-            className={`p-2 rounded-xl border group-hover:scale-105 transition-transform ${
+            className={`p-1.5 rounded-lg ${
               resumo.totalItensDivergentes === 0
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                ? 'bg-green-500/10 text-green-400'
+                : 'bg-red-500/10 text-red-400'
             }`}
           >
             {resumo.totalItensDivergentes === 0 ? (
@@ -120,53 +113,51 @@ export const SessionKPIs: React.FC<SessionKPIsProps> = ({ resumo }) => {
         <div className="mt-3">
           <div className="flex items-baseline gap-2">
             <span
-              className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
-                resumo.totalItensDivergentes === 0 ? 'text-emerald-400' : 'text-rose-400'
+              className={`text-2xl font-bold tabular-nums ${
+                resumo.totalItensDivergentes === 0 ? 'text-green-400' : 'text-red-400'
               }`}
             >
               {resumo.totalItensDivergentes}
             </span>
-            <span className="text-xs text-slate-400 font-medium">SKUs</span>
+            <span className="text-xs text-gray-500">SKUs</span>
           </div>
-          <div className="mt-2 flex items-center gap-2 text-[11px] pt-2 border-t border-slate-800/80">
-            <span className="text-rose-400 font-mono font-medium flex items-center gap-1">
+          <div className="mt-2 flex items-center gap-3 text-[11px] pt-2 border-t border-gray-700/50">
+            <span className="text-red-400 flex items-center gap-1">
               <TrendingDown className="w-3 h-3" /> {resumo.totalItensFaltando} falta
             </span>
-            <span className="text-slate-700">|</span>
-            <span className="text-sky-400 font-mono font-medium flex items-center gap-1">
+            <span className="text-gray-600">|</span>
+            <span className="text-blue-400 flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> {resumo.totalItensSobrando} sobra
             </span>
           </div>
         </div>
       </div>
 
-      {/* 4. Acurácia % com Barra Visual */}
-      <div className="enterprise-card rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
+      {/* 4. Acurácia */}
+      <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Acurácia
           </span>
-          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-105 transition-transform">
+          <div className="p-1.5 rounded-lg bg-gray-600/20 text-gray-400">
             <Percent className="w-4 h-4" />
           </div>
         </div>
 
         <div className="mt-3">
           <div className="flex items-baseline justify-between">
-            <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${acuraciaTextoCor}`}>
+            <span className={`text-2xl font-bold tabular-nums ${acuraciaTextoCor}`}>
               {resumo.acuraciaPercentual.toFixed(1)}%
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-gray-700 text-gray-300">
               {acuraciaClamped >= 95 ? 'Excelente' : acuraciaClamped >= 85 ? 'Atenção' : 'Crítico'}
             </span>
           </div>
 
-          {/* Barra de progresso visual */}
-          <div className="mt-2 pt-2 border-t border-slate-800/80">
-            <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+          <div className="mt-2 pt-2 border-t border-gray-700/50">
+            <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
               <div
-                className={`h-full bg-gradient-to-r ${acuraciaCor} transition-all duration-500`}
+                className={`h-full ${acuraciaBarCor} transition-all duration-500`}
                 style={{ width: `${acuraciaClamped}%` }}
               />
             </div>
@@ -174,18 +165,17 @@ export const SessionKPIs: React.FC<SessionKPIsProps> = ({ resumo }) => {
         </div>
       </div>
 
-      {/* 5. Balanço Financeiro Líquido */}
-      <div className="col-span-2 md:col-span-1 lg:col-span-1 enterprise-card rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group">
+      {/* 5. Impacto Financeiro */}
+      <div className="col-span-2 md:col-span-1 lg:col-span-1 bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${isFinanceiroPositivo ? 'bg-sky-400' : 'bg-rose-400'}`} />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Impacto Líquido
           </span>
           <div
-            className={`p-2 rounded-xl border group-hover:scale-105 transition-transform ${
+            className={`p-1.5 rounded-lg ${
               isFinanceiroPositivo
-                ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                ? 'bg-blue-500/10 text-blue-400'
+                : 'bg-red-500/10 text-red-400'
             }`}
           >
             <DollarSign className="w-4 h-4" />
@@ -195,12 +185,12 @@ export const SessionKPIs: React.FC<SessionKPIsProps> = ({ resumo }) => {
         <div className="mt-3">
           <div className="flex items-baseline gap-1">
             <span
-              className={`text-xl sm:text-2xl font-black font-mono tracking-tight truncate ${
+              className={`text-xl font-bold tabular-nums truncate ${
                 resumo.impactoFinanceiroTotal === 0
-                  ? 'text-slate-200'
+                  ? 'text-gray-300'
                   : isFinanceiroPositivo
-                  ? 'text-sky-400'
-                  : 'text-rose-400'
+                  ? 'text-blue-400'
+                  : 'text-red-400'
               }`}
             >
               {resumo.impactoFinanceiroTotal > 0 ? '+' : ''}
@@ -210,11 +200,11 @@ export const SessionKPIs: React.FC<SessionKPIsProps> = ({ resumo }) => {
               })}
             </span>
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-700/50">
             <span>Balanço contábil</span>
             <span
-              className={`font-mono font-bold ${
-                isFinanceiroPositivo ? 'text-sky-400' : 'text-rose-400'
+              className={`font-medium ${
+                isFinanceiroPositivo ? 'text-blue-400' : 'text-red-400'
               }`}
             >
               {resumo.impactoFinanceiroTotal > 0 ? 'Sobra' : resumo.impactoFinanceiroTotal < 0 ? 'Falta' : 'Equilibrado'}
