@@ -114,26 +114,26 @@ describe('InventoryService (Lógica de Negócios e Operações Atômicas)', () =
   it('deve registrar bipe atômico incrementando quantidade contada', async () => {
     // Garante produto de teste cadastrado
     await salvarProduto({
-      codigo_sku: '205N51',
-      descricao: 'PUXADA ALTA CONVERGENTE - ALL FIT IRON',
+      codigo_sku: 'UNIT_TEST_SKU_CAD',
+      descricao: 'Item Unit Test',
       estoque_sistema: 12,
       custo_unitario: 4850.0,
     });
 
-    const sessao = await criarSessao('Sessão Teste Bipe');
+    const sessao = await criarSessao('Sessao Mock Test');
 
     // Primeiro bipe de SKU cadastrado
-    const r1 = await registrarLeitura(sessao.id, '205N51');
+    const r1 = await registrarLeitura(sessao.id, 'UNIT_TEST_SKU_CAD');
     expect(r1.sucesso).toBe(true);
     expect(r1.cadastrado).toBe(true);
     expect(r1.item.quantidade_contada).toBe(1);
 
     // Segundo bipe do mesmo SKU
-    const r2 = await registrarLeitura(sessao.id, '205N51');
+    const r2 = await registrarLeitura(sessao.id, 'UNIT_TEST_SKU_CAD');
     expect(r2.item.quantidade_contada).toBe(2);
 
     // Bipe de SKU não cadastrado
-    const r3 = await registrarLeitura(sessao.id, 'SKU_INEXISTENTE_99');
+    const r3 = await registrarLeitura(sessao.id, 'UNIT_TEST_SKU_NAO_CAD');
     expect(r3.cadastrado).toBe(false);
     expect(r3.item.quantidade_contada).toBe(1);
     expect(r3.item.cadastrado_no_sistema).toBe(false);
