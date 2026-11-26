@@ -198,11 +198,10 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
                 setMultiplier(val);
                 inputRef.current?.focus();
               }}
-              className={`px-2.5 py-1 rounded-lg font-mono font-bold transition-all ${
-                multiplier === val
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}
+              className={`px-2.5 py-1 rounded-lg font-mono font-bold transition-all ${multiplier === val
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+                }`}
             >
               x{val}
             </button>
@@ -236,30 +235,36 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
 
       {/* Container Principal do Input do Leitor */}
       <div
-        className={`relative rounded-2xl p-1.5 transition-all duration-200 border-2 ${
+        className={`relative overflow-hidden rounded-2xl p-1.5 transition-all duration-300 border-2 ${
           flashType === 'success'
-            ? 'flash-success bg-emerald-950/40 border-emerald-400 shadow-2xl shadow-emerald-500/20'
+            ? 'flash-success bg-emerald-950/40 border-emerald-400 shadow-2xl shadow-emerald-500/25'
             : flashType === 'warning'
-            ? 'flash-warning bg-amber-950/40 border-amber-400 shadow-2xl shadow-amber-500/20'
+            ? 'flash-warning bg-amber-950/40 border-amber-400 shadow-2xl shadow-amber-500/25'
             : flashType === 'error'
-            ? 'flash-error bg-red-950/40 border-red-500 shadow-2xl shadow-red-500/20'
-            : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-600 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10'
+            ? 'flash-error bg-red-950/40 border-red-500 shadow-2xl shadow-red-500/25'
+            : 'enterprise-card border-slate-700/80 hover:border-slate-600 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10'
         }`}
       >
-        <div className="flex items-center gap-3 px-4 py-2">
+        {/* Laser animado sutil de prontidão */}
+        {!disabled && <div className="laser-beam opacity-30" />}
+
+        <div className="flex items-center gap-3 px-4 py-2 relative z-10">
           {/* Ícone Indicador de Scanner */}
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-800 text-emerald-400 border border-slate-700 shrink-0">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 shadow-inner shrink-0">
             <Barcode className="w-7 h-7" />
           </div>
 
           {/* Campo de Entrada com Autofocus */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between text-xs font-semibold mb-1">
-              <span className="text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                Leitor Nonus LW200 Ativo
+              <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-slate-300 font-bold">Leitor Nonus LW200</span>
                 {multiplier > 1 && (
-                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[10px]">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono text-[10px] font-bold">
                     Multiplicador x{multiplier}
                   </span>
                 )}
@@ -285,10 +290,10 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
 
           {/* Indicador de Status / Enter */}
           <div className="hidden sm:flex items-center gap-2 pr-2 shrink-0">
-            <span className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono text-xs">
+            <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono text-xs shadow-inner">
               ENTER ↵
             </span>
-            <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium">
+            <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold font-mono">
               <Zap className="w-3.5 h-3.5" />
               <span>Autofocus ON</span>
             </div>
@@ -299,20 +304,18 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
       {/* BANNER HUD: ÚLTIMA LEITURA BIPADA */}
       {lastScanned && (
         <div
-          className={`rounded-xl p-4 border transition-all duration-300 ${
-            lastScanned.cadastrado
-              ? 'bg-slate-900/95 border-emerald-500/40 shadow-lg'
-              : 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-950/50'
-          }`}
+          className={`rounded-xl p-4 border transition-all duration-300 ${lastScanned.cadastrado
+            ? 'bg-slate-900/95 border-emerald-500/40 shadow-lg'
+            : 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-950/50'
+            }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <div
-                className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
-                  lastScanned.cadastrado
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                }`}
+                className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${lastScanned.cadastrado
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  }`}
               >
                 {lastScanned.cadastrado ? (
                   <CheckCircle className="w-6 h-6" />
@@ -356,13 +359,12 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
                   <span>
                     Divergência:{' '}
                     <strong
-                      className={`font-mono text-sm ${
-                        lastScanned.divergencia === 0
-                          ? 'text-emerald-400'
-                          : lastScanned.divergencia > 0
+                      className={`font-mono text-sm ${lastScanned.divergencia === 0
+                        ? 'text-emerald-400'
+                        : lastScanned.divergencia > 0
                           ? 'text-sky-400'
                           : 'text-red-400'
-                      }`}
+                        }`}
                     >
                       {lastScanned.divergencia > 0 ? `+${lastScanned.divergencia}` : lastScanned.divergencia}
                     </strong>
@@ -412,11 +414,10 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
             {history.map((h) => (
               <div
                 key={h.id}
-                className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-mono border shrink-0 ${
-                  h.cadastrado
-                    ? 'bg-slate-900 border-slate-700 text-slate-200'
-                    : 'bg-amber-950/30 border-amber-500/40 text-amber-300'
-                }`}
+                className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-mono border shrink-0 ${h.cadastrado
+                  ? 'bg-slate-900 border-slate-700 text-slate-200'
+                  : 'bg-amber-950/30 border-amber-500/40 text-amber-300'
+                  }`}
               >
                 <span className="font-bold">{h.sku}</span>
                 <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-800 text-emerald-400 font-bold">

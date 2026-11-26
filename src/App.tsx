@@ -510,47 +510,47 @@ const InventoryMain: React.FC = () => {
       />
 
       {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* TAB 1: CONTAGEM E BIPE */}
         {activeTab === 'contagem' && sessaoAtiva && (
           <div className="space-y-6">
             {/* Seletor Rápido de Sessão e Status */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 px-4 py-3 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-slate-800 text-emerald-400 border border-slate-700">
-                  <Layers className="w-4 h-4" />
+            <div className="enterprise-card px-5 py-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="p-2.5 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 shadow-inner">
+                  <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-medium">Sessão Ativa:</span>
-                    <strong className="text-sm font-bold text-white">{sessaoAtiva.nome}</strong>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Sessão Ativa:</span>
+                    <strong className="text-base font-extrabold text-white tracking-wide">{sessaoAtiva.nome}</strong>
                     <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                         sessaoAtiva.status === 'finalizado'
-                          ? 'bg-slate-800 text-slate-400 border-slate-700'
+                          ? 'bg-slate-900 text-slate-400 border-slate-700'
                           : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                       }`}
                     >
                       {sessaoAtiva.status === 'finalizado' ? 'Finalizada' : 'Em Andamento'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Aberta em {new Date(sessaoAtiva.created_at).toLocaleString('pt-BR')}
+                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    Iniciada em {new Date(sessaoAtiva.created_at).toLocaleString('pt-BR')} // ID: {sessaoAtiva.id.slice(0, 8)}...
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   onClick={() => setActiveTab('sessoes')}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shadow-sm"
                 >
                   Trocar Sessão
                 </button>
 
                 <button
                   onClick={() => setShowProductModal(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition shadow-sm"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
                   Base de Produtos ({produtos.length})
@@ -618,9 +618,9 @@ const InventoryMain: React.FC = () => {
             </div>
 
             {/* Tabela rápida de consulta */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl p-4">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-950/70 text-slate-400 text-xs uppercase font-mono border-b border-slate-800">
+            <div className="enterprise-card rounded-2xl overflow-hidden shadow-xl p-4">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase font-mono border-b border-slate-800">
                   <tr>
                     <th className="py-3 px-4">Código SKU</th>
                     <th className="py-3 px-4">Descrição Oficial</th>
@@ -630,7 +630,7 @@ const InventoryMain: React.FC = () => {
                     <th className="py-3 px-4 text-center">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
                   {produtos.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-slate-400">

@@ -7,27 +7,58 @@
 
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #0b0f19;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #080d19;
     color: #f1f5f9;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  code, kbd, samp, pre {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
 }
 
-/* Animação de pulso e flash ao bipar com leitor de código de barras */
-@keyframes beep-flash-success {
+/* Efeito de laser ativo do scanner de código de barras */
+@keyframes laser-sweep {
   0% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-    border-color: #22c55e;
-    transform: scale(1.008);
+    top: 10%;
+    opacity: 0.2;
   }
   50% {
-    box-shadow: 0 0 35px 8px rgba(34, 197, 94, 0.4);
-    border-color: #4ade80;
+    top: 90%;
+    opacity: 0.9;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    top: 10%;
+    opacity: 0.2;
+  }
+}
+
+.laser-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #22d3ee, #10b981, transparent);
+  box-shadow: 0 0 12px #22d3ee;
+  animation: laser-sweep 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Animações de pulso e flash de alta precisão */
+@keyframes beep-flash-success {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    border-color: #10b981;
+    transform: scale(1.006);
+  }
+  50% {
+    box-shadow: 0 0 35px 8px rgba(16, 185, 129, 0.35);
+    border-color: #34d399;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
     border-color: #334155;
     transform: scale(1);
   }
@@ -37,10 +68,10 @@
   0% {
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8);
     border-color: #f59e0b;
-    transform: scale(1.01);
+    transform: scale(1.008);
   }
   50% {
-    box-shadow: 0 0 40px 10px rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 40px 10px rgba(245, 158, 11, 0.45);
     border-color: #fbbf24;
   }
   100% {
@@ -64,32 +95,45 @@
 }
 
 .flash-success {
-  animation: beep-flash-success 0.45s ease-out;
+  animation: beep-flash-success 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .flash-warning {
-  animation: beep-flash-warning 0.55s ease-out;
+  animation: beep-flash-warning 0.55s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .flash-error {
-  animation: beep-flash-error 0.5s ease-out;
+  animation: beep-flash-error 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Card corporativo com borda sutil e gradiente de profundidade */
+.enterprise-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(10, 15, 29, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+.enterprise-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* Custom scrollbar para ambiente industrial */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #090d18;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+  background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
 }
