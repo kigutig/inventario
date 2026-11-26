@@ -37,7 +37,7 @@ describe('<ScannerInput /> (Leitor Nonus LW200 HID)', () => {
 
     // Valida Banner HUD do último bipe
     await waitFor(() => {
-      expect(screen.getByText('205N51')).toBeInTheDocument();
+      expect(screen.getAllByText('205N51')[0]).toBeInTheDocument();
       expect(screen.getByText('PUXADA ALTA CONVERGENTE')).toBeInTheDocument();
       expect(screen.getByText(/Cadastrado Oficial/i)).toBeInTheDocument();
     });

@@ -6,24 +6,44 @@ import {
   PlusCircle,
   Clock,
   Zap,
+  Camera,
+  RotateCcw,
+  Sliders,
+  History
 } from 'lucide-react';
 import { soundManager } from '../lib/sound';
 import type { ItemInventariado } from '../types/inventory';
 
+interface ScannedHistoryItem {
+  id: string;
+  sku: string;
+  descricao: string;
+  cadastrado: boolean;
+  timestamp: Date;
+  qtdDelta: number;
+  totalQtd: number;
+}
+
 interface ScannerInputProps {
-  onScan: (sku: string) => Promise<{ cadastrado: boolean; item?: ItemInventariado; mensagem?: string }>;
+  onScan: (sku: string, multiplier?: number) => Promise<{ cadastrado: boolean; item?: ItemInventariado; mensagem?: string }>;
   disabled?: boolean;
   onQuickRegisterSku?: (sku: string) => void;
+  onOpenMobileCamera?: () => void;
+  onUndoLastScan?: (sku: string) => void;
 }
 
 export const ScannerInput: React.FC<ScannerInputProps> = ({
   onScan,
   disabled = false,
   onQuickRegisterSku,
+  onOpenMobileCamera,
+  onUndoLastScan,
 }) => {
   const [sku, setSku] = useState('');
+  const [multiplier, setMultiplier] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [flashType, setFlashType] = useState<'success' | 'warning' | 'error' | null>(null);
+  const [history, setHistory] = useState<ScannedHistoryItem[]>([]);
   const [lastScanned, setLastScanned] = useState<{
     sku: string;
     descricao: string;
@@ -53,15 +73,15 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
       inputRef.current?.focus();
     };
 
-    // Foco no mount
+    // Foco inicial
     focusInput();
 
-    // Re-foco ao clicar em qualquer lugar da tela
+    // Re-foco ao clicar na tela
     const handleWindowClick = () => {
       setTimeout(focusInput, 50);
     };
 
-    // Fallback: se o usuário pressionar teclas alfanuméricas fora do input (buffer rápido do leitor Nonus LW200)
+    // Buffer rápido do leitor Nonus LW200 caso clique fora
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
       const isInputFocused =
@@ -96,12 +116,14 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
       const rawSku = sku.trim().toUpperCase();
       if (!rawSku || isProcessing || disabled) return;
 
+      const currentMultiplier = Math.max(1, Math.floor(multiplier) || 1);
+
       // Limpa imediatamente o input para a próxima leitura imediata (Zero Latency UX)
       setSku('');
       setIsProcessing(true);
 
       try {
-        const result = await onScan(rawSku);
+        const result = currentMultiplier > 1 ? await onScan(rawSku, currentMultiplier) : await onScan(rawSku);
 
         if (result.cadastrado) {
           soundManager.playSuccess();
@@ -111,31 +133,107 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
           triggerFlash('warning');
         }
 
-        const qtd = result.item?.quantidade_contada || 1;
+        const totalQtd = result.item?.quantidade_contada || currentMultiplier;
         const estoque = result.item?.estoque_sistema_snapshot || 0;
+        const descricao = result.item?.descricao_snapshot || (result.cadastrado ? 'Item Cadastrado' : 'Item NÃO Cadastrado');
 
         setLastScanned({
           sku: rawSku,
-          descricao: result.item?.descricao_snapshot || (result.cadastrado ? 'Item Cadastrado' : 'Item NÃO Cadastrado'),
+          descricao,
           cadastrado: result.cadastrado,
           timestamp: new Date(),
-          qtd,
-          divergencia: qtd - estoque,
+          qtd: totalQtd,
+          divergencia: totalQtd - estoque,
         });
+
+        // Adiciona à fita de auditoria dos últimos bipes
+        setHistory((prev) => [
+          {
+            id: `scan_${Date.now()}_${Math.random()}`,
+            sku: rawSku,
+            descricao,
+            cadastrado: result.cadastrado,
+            timestamp: new Date(),
+            qtdDelta: currentMultiplier,
+            totalQtd,
+          },
+          ...prev.slice(0, 4),
+        ]);
       } catch (err) {
         soundManager.playError();
         triggerFlash('error');
         console.error('Erro ao processar leitura:', err);
       } finally {
         setIsProcessing(false);
-        // Garante que o foco permaneça
         inputRef.current?.focus();
+      }
+    }
+  };
+
+  const handleUndo = (itemSku: string) => {
+    if (onUndoLastScan) {
+      onUndoLastScan(itemSku);
+      setHistory((prev) => prev.filter((h) => h.sku !== itemSku));
+      if (lastScanned?.sku === itemSku) {
+        setLastScanned(null);
       }
     }
   };
 
   return (
     <div className="w-full space-y-3">
+      {/* Controles de Lote / Multiplicador e Ações Rápidas */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        {/* Multiplicadores de Quantidade */}
+        <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800 text-xs">
+          <span className="text-slate-400 font-medium px-2 flex items-center gap-1">
+            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+            Lote:
+          </span>
+          {[1, 5, 10, 25, 50].map((val) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => {
+                setMultiplier(val);
+                inputRef.current?.focus();
+              }}
+              className={`px-2.5 py-1 rounded-lg font-mono font-bold transition-all ${
+                multiplier === val
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              x{val}
+            </button>
+          ))}
+          <div className="flex items-center gap-1 pl-1 border-l border-slate-800">
+            <input
+              type="number"
+              min={1}
+              max={9999}
+              value={multiplier}
+              onChange={(e) => setMultiplier(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-0.5 text-center font-mono text-xs text-white focus:outline-none focus:border-cyan-400"
+              title="Quantidade personalizada por bipe"
+            />
+          </div>
+        </div>
+
+        {/* Botão de Câmera Mobile / Tablet */}
+        {onOpenMobileCamera && (
+          <button
+            type="button"
+            onClick={onOpenMobileCamera}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-semibold shadow-sm transition"
+            title="Abrir leitor de código de barras pela câmera"
+          >
+            <Camera className="w-4 h-4" />
+            <span>Leitor por Câmera</span>
+          </button>
+        )}
+      </div>
+
       {/* Container Principal do Input do Leitor */}
       <div
         className={`relative rounded-2xl p-1.5 transition-all duration-200 border-2 ${
@@ -160,6 +258,11 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
               <span className="text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 Leitor Nonus LW200 Ativo
+                {multiplier > 1 && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[10px]">
+                    Multiplicador x{multiplier}
+                  </span>
+                )}
               </span>
               <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">
                 Aguardando leitura de código de barras ou SKU + Enter
@@ -193,7 +296,7 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
         </div>
       </div>
 
-      {/* BANNER HUD: ÚLTIMA LEITURA BIPADA (ALTO CONTRASTE PARA GALPÃO) */}
+      {/* BANNER HUD: ÚLTIMA LEITURA BIPADA */}
       {lastScanned && (
         <div
           className={`rounded-xl p-4 border transition-all duration-300 ${
@@ -268,16 +371,62 @@ export const ScannerInput: React.FC<ScannerInputProps> = ({
               </div>
             </div>
 
-            {/* Ação rápida caso não seja cadastrado */}
-            {!lastScanned.cadastrado && onQuickRegisterSku && (
-              <button
-                onClick={() => onQuickRegisterSku(lastScanned.sku)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all self-end sm:self-center shrink-0"
+            {/* Ações Rápidas: Cadastrar ou Desfazer */}
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              {onUndoLastScan && (
+                <button
+                  type="button"
+                  onClick={() => handleUndo(lastScanned.sku)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                  title="Desfazer última leitura deste SKU (-1)"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Desfazer (-1)
+                </button>
+              )}
+
+              {!lastScanned.cadastrado && onQuickRegisterSku && (
+                <button
+                  type="button"
+                  onClick={() => onQuickRegisterSku(lastScanned.sku)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all shrink-0"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Cadastrar Este SKU Agora
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MINI FITA DE AUDITORIA: ÚLTIMOS BIPES REGISTRADOS */}
+      {history.length > 0 && (
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between gap-2 overflow-x-auto">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold shrink-0 pl-1">
+            <History className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Fita de Bipes:</span>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-mono border shrink-0 ${
+                  h.cadastrado
+                    ? 'bg-slate-900 border-slate-700 text-slate-200'
+                    : 'bg-amber-950/30 border-amber-500/40 text-amber-300'
+                }`}
               >
-                <PlusCircle className="w-4 h-4" />
-                Cadastrar Este SKU Agora
-              </button>
-            )}
+                <span className="font-bold">{h.sku}</span>
+                <span className="text-[11px] px-1.5 py-0.2 rounded bg-slate-800 text-emerald-400 font-bold">
+                  +{h.qtdDelta}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  (Total: {h.totalQtd})
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

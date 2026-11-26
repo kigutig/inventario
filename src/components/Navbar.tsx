@@ -9,6 +9,10 @@ import {
   LogOut,
   Code2,
   AlertTriangle,
+  Printer,
+  Tag,
+  PackageCheck,
+  Keyboard,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { soundManager } from '../lib/sound';
@@ -17,9 +21,21 @@ interface NavbarProps {
   activeTab: 'contagem' | 'produtos' | 'sessoes';
   setActiveTab: (tab: 'contagem' | 'produtos' | 'sessoes') => void;
   onOpenSqlModal: () => void;
+  onOpenReportModal?: () => void;
+  onOpenLabelsModal?: () => void;
+  onOpenUnscannedModal?: () => void;
+  onOpenShortcutsModal?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenSqlModal }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTab,
+  setActiveTab,
+  onOpenSqlModal,
+  onOpenReportModal,
+  onOpenLabelsModal,
+  onOpenUnscannedModal,
+  onOpenShortcutsModal,
+}) => {
   const { user, demoUser, isConfigured, signOut } = useAuth();
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
 
@@ -121,6 +137,50 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenS
                 </>
               )}
             </button>
+
+            {/* Ferramentas de Auditoria & Produção */}
+            {onOpenReportModal && (
+              <button
+                onClick={onOpenReportModal}
+                title="Relatório Formal de Auditoria (F9 / Ctrl+P)"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden xl:inline">Relatório</span>
+              </button>
+            )}
+
+            {onOpenLabelsModal && (
+              <button
+                onClick={onOpenLabelsModal}
+                title="Gerador de Etiquetas Code 128 (F8)"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+              >
+                <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xl:inline">Etiquetas</span>
+              </button>
+            )}
+
+            {onOpenUnscannedModal && (
+              <button
+                onClick={onOpenUnscannedModal}
+                title="Cobertura de Estoque & Faltantes (F7)"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+              >
+                <PackageCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden xl:inline">Cobertura</span>
+              </button>
+            )}
+
+            {onOpenShortcutsModal && (
+              <button
+                onClick={onOpenShortcutsModal}
+                title="Atalhos Rápidos de Teclado (F2)"
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+              >
+                <Keyboard className="w-4 h-4 text-purple-400" />
+              </button>
+            )}
 
             {/* Controle de Som / Bipe */}
             <button

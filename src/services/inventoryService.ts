@@ -574,6 +574,64 @@ export async function excluirItemContagem(itemId: string, sessaoId: string): Pro
   setSecureStorage(`${LS_ITENS}_${sessaoId}`, filtrados);
 }
 
+export async function consolidarItensNaoBipados(
+  sessaoId: string,
+  produtosNaoBipados: ProdutoCadastro[],
+  _usuarioId?: string
+): Promise<ItemInventariado[]> {
+  if (!produtosNaoBipados || produtosNaoBipados.length === 0) return [];
+
+  const supabase = getSupabase();
+  const timestamp = new Date().toISOString();
+
+  if (supabase) {
+    const payload = produtosNaoBipados.map((p) => ({
+      sessao_id: sessaoId,
+      codigo_sku: p.codigo_sku,
+      descricao_snapshot: p.descricao,
+      estoque_sistema_snapshot: p.estoque_sistema,
+      quantidade_contada: 0,
+      custo_unitario_snapshot: p.custo_unitario,
+      cadastrado_no_sistema: true,
+      ultima_leitura_at: timestamp,
+    }));
+
+    const { data, error } = await supabase
+      .from('itens_inventariados')
+      .upsert(payload, { onConflict: 'sessao_id,codigo_sku' })
+      .select('*');
+
+    if (error) throw error;
+    return (data || []) as ItemInventariado[];
+  }
+
+  // Fallback Local Protegido
+  const itens = await listarItensInventariados(sessaoId);
+  const existentesMap = new Map(itens.map((i) => [i.codigo_sku.toLowerCase(), i]));
+
+  const novosItens: ItemInventariado[] = [];
+  for (const p of produtosNaoBipados) {
+    if (!existentesMap.has(p.codigo_sku.toLowerCase())) {
+      const item: ItemInventariado = {
+        id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        sessao_id: sessaoId,
+        codigo_sku: p.codigo_sku,
+        descricao_snapshot: p.descricao,
+        estoque_sistema_snapshot: p.estoque_sistema,
+        quantidade_contada: 0,
+        custo_unitario_snapshot: p.custo_unitario,
+        cadastrado_no_sistema: true,
+        ultima_leitura_at: timestamp,
+      };
+      novosItens.push(item);
+      itens.push(item);
+    }
+  }
+
+  setSecureStorage(`${LS_ITENS}_${sessaoId}`, itens);
+  return itens;
+}
+
 // ==============================================================================
 // LOGS DE AUDITORIA (logs_leituras)
 // ==============================================================================

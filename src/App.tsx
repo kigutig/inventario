@@ -17,8 +17,14 @@ import { SessionsView } from './components/SessionsView';
 import { ProductCatalogModal } from './components/ProductCatalogModal';
 import { SqlInstructionsModal } from './components/SqlInstructionsModal';
 import { AuditLogDrawer } from './components/AuditLogDrawer';
+import { PrintReportModal } from './components/PrintReportModal';
+import { BarcodeLabelModal } from './components/BarcodeLabelModal';
+import { UnscannedItemsModal } from './components/UnscannedItemsModal';
+import { CameraBarcodeScannerModal } from './components/CameraBarcodeScannerModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import {
   ajustarQuantidade,
+  consolidarItensNaoBipados,
   criarSessao,
   excluirItemContagem,
   excluirProduto,
@@ -54,8 +60,47 @@ const InventoryMain: React.FC = () => {
   const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
   const [showProductModal, setShowProductModal] = useState<boolean>(false);
   const [showAuditLogs, setShowAuditLogs] = useState<boolean>(false);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [showLabelsModal, setShowLabelsModal] = useState<boolean>(false);
+  const [showUnscannedModal, setShowUnscannedModal] = useState<boolean>(false);
+  const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [skuParaCadastrar, setSkuParaCadastrar] = useState<string | undefined>(undefined);
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
+
+  // Atalhos Globais de Teclado (F2, F4, F7, F8, F9, Ctrl+P, Esc)
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      if (e.key === 'F4') {
+        e.preventDefault();
+        setShowProductModal((prev) => !prev);
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        setShowUnscannedModal(true);
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        setShowLabelsModal(true);
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        setShowReportModal(true);
+      } else if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setShowReportModal(true);
+      } else if (e.key === 'Escape') {
+        setShowSqlModal(false);
+        setShowProductModal(false);
+        setShowAuditLogs(false);
+        setShowReportModal(false);
+        setShowLabelsModal(false);
+        setShowUnscannedModal(false);
+        setShowCameraModal(false);
+        setShowShortcutsModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, []);
 
   // Mitigação CWE-613: Monitoramento de inatividade e expiração temporal de sessão
   useEffect(() => {
@@ -255,12 +300,22 @@ const InventoryMain: React.FC = () => {
   // --------------------------------------------------------------------------
   // HANDLERS DE AÇÃO
   // --------------------------------------------------------------------------
-  const handleScan = async (sku: string) => {
+  const handleScan = async (sku: string, multiplier: number = 1) => {
     if (!sessaoAtiva) throw new Error('Nenhuma sessão selecionada');
     renewSession();
 
     const userId = user?.id || demoUser?.email;
-    const resultado = await registrarLeitura(sessaoAtiva.id, sku, userId);
+    let resultado = await registrarLeitura(sessaoAtiva.id, sku, userId);
+
+    // Suporte a contagem em lote / multiplicador (ex: x5, x10 caixas)
+    if (multiplier > 1 && resultado.item) {
+      const delta = multiplier - 1;
+      const itemAtualizado = await ajustarQuantidade(resultado.item.id, sessaoAtiva.id, delta, userId);
+      resultado = {
+        ...resultado,
+        item: itemAtualizado,
+      };
+    }
 
     // Optimistic / Local update imediato para feedback instantâneo
     setItens((prev) => {
@@ -285,6 +340,25 @@ const InventoryMain: React.FC = () => {
     ]);
 
     return resultado;
+  };
+
+  const handleUndoLastScan = async (sku: string) => {
+    if (!sessaoAtiva) return;
+    const item = itens.find((i) => i.codigo_sku.toLowerCase() === sku.toLowerCase());
+    if (item) {
+      if (item.quantidade_contada <= 1) {
+        await handleDeleteItem(item.id);
+      } else {
+        await handleAdjustQuantity(item.id, -1);
+      }
+    }
+  };
+
+  const handleBatchAddUnscannedAsZero = async (faltantes: ProdutoCadastro[]) => {
+    if (!sessaoAtiva) return;
+    const userId = user?.id || demoUser?.email;
+    const itensAtualizados = await consolidarItensNaoBipados(sessaoAtiva.id, faltantes, userId);
+    setItens(itensAtualizados);
   };
 
   const handleAdjustQuantity = async (itemId: string, delta: number) => {
@@ -429,6 +503,10 @@ const InventoryMain: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenSqlModal={() => setShowSqlModal(true)}
+        onOpenReportModal={() => setShowReportModal(true)}
+        onOpenLabelsModal={() => setShowLabelsModal(true)}
+        onOpenUnscannedModal={() => setShowUnscannedModal(true)}
+        onOpenShortcutsModal={() => setShowShortcutsModal(true)}
       />
 
       {/* Conteúdo Principal */}
@@ -498,6 +576,8 @@ const InventoryMain: React.FC = () => {
               onScan={handleScan}
               disabled={sessaoAtiva.status === 'finalizado'}
               onQuickRegisterSku={handleQuickRegisterSku}
+              onOpenMobileCamera={() => setShowCameraModal(true)}
+              onUndoLastScan={handleUndoLastScan}
             />
 
             {/* CARDS DE RESUMO E KPIS */}
@@ -631,6 +711,48 @@ const InventoryMain: React.FC = () => {
         onClose={() => setShowAuditLogs(false)}
         logs={logs}
         sessaoNome={sessaoAtiva?.nome || 'Sessão'}
+      />
+
+      {/* MODAL DE IMPRESSÃO DE RELATÓRIO FORMAL A4 */}
+      <PrintReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        sessao={sessaoAtiva}
+        itens={itens}
+        resumo={resumoSessao}
+        auditorEmail={user?.email || demoUser?.email}
+      />
+
+      {/* GERADOR DE ETIQUETAS CODE 128 */}
+      <BarcodeLabelModal
+        isOpen={showLabelsModal}
+        onClose={() => setShowLabelsModal(false)}
+        produtos={produtos}
+        itensSessao={itens}
+      />
+
+      {/* COBERTURA DO ESTOQUE E ITENS NÃO LOCALIZADOS */}
+      <UnscannedItemsModal
+        isOpen={showUnscannedModal}
+        onClose={() => setShowUnscannedModal(false)}
+        produtos={produtos}
+        itensSessao={itens}
+        onAddUnscannedAsZero={handleBatchAddUnscannedAsZero}
+      />
+
+      {/* LEITOR DE CÓDIGO DE BARRAS POR CÂMERA (MOBILE/TABLET) */}
+      <CameraBarcodeScannerModal
+        isOpen={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onScan={async (scannedSku) => {
+          await handleScan(scannedSku);
+        }}
+      />
+
+      {/* GUIA DE ATALHOS DE TECLADO */}
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
       />
     </div>
   );
